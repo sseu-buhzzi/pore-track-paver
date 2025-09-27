@@ -1,0 +1,11 @@
+#!/usr/bin/bash
+
+cd $(dirname $0);
+gcc -O3 -S _start.c && ./convert-svc _start;
+gcc -O3 -S sokoban.c && ./convert-svc sokoban;
+gcc -nostartfiles -o crackme-raw _start-svc.s track_layer.s decr-imem.s sokoban-svc.s gloceries.c;
+objdump -d crackme-raw > crackme-raw.dsm;
+./encr-tail crackme 0x4000 0x45c0;
+strip crackme;
+dd bs=1 conv=notrunc if=/dev/zero of=crackme seek=$[0x3000] count=$[0x16c];
+objdump -d crackme > crackme.dsm;

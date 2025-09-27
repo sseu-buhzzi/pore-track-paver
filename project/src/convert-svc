@@ -1,0 +1,16 @@
+#!/usr/bin/python3
+import sys
+
+with open(sys.argv[1] + ".s", "r") as in_f, open(sys.argv[1] + "-svc.s", "w") as out_f:
+	for line in in_f.readlines():
+		match line.split():
+			case "bl", "openat", *parts:
+				out_f.write("\tmov\tx8, 0x38\n\tsvc\t0x0\t" + "\t".join(parts) + "\n")
+			case "bl", "close", *parts:
+				out_f.write("\tmov\tx8, 0x39\n\tsvc\t0x0\t" + "\t".join(parts) + "\n")
+			case "bl", "read", *parts:
+				out_f.write("\tmov\tx8, 0x3f\n\tsvc\t0x0\t" + "\t".join(parts) + "\n")
+			case "bl", "write", *parts:
+				out_f.write("\tmov\tx8, 0x40\n\tsvc\t0x0\t" + "\t".join(parts) + "\n")
+			case _:
+				out_f.write(line)

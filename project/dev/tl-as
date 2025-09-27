@@ -1,0 +1,98 @@
+#!/usr/bin/python3
+
+import sys
+
+addr = 0
+insns: list[tuple[int, int, int, bytes]] = []
+symbols: dict[str, int] = {}
+
+OP_SVC = 0
+OP_PSH = 1
+OP_ADD = 2
+OP_NOR = 3
+OP_ROR = 4
+OP_MAD = 5
+OP_SLT = 6
+OP_JMP = 7
+OP_LDR = 8
+OP_STR = 9
+OP_POP = 10
+
+src_path = sys.argv[1]
+dst_path = sys.argv[2]
+
+with open(src_path, "r") as f:
+	lines = f.readlines()
+	stmts: list[tuple[int, list[str]]] = []
+	for line in lines:
+		content, *comment = line[ : -1].split("//")
+		if not content:
+			continue
+		parts = content.split()
+		if not parts:
+			continue
+		if parts[0].endswith(":"):
+			symbols[parts[0][ : -1]] = addr
+		elif parts[0] in ("svc", "add", "nor", "ror", "mad", "slt", "jmp", "pop"):
+			stmts.append((addr, parts))
+			addr += 4
+		elif parts[0] in ("psh", "ldr", "str"):
+			stmts.append((addr, parts))
+			addr += 8
+	for addr, parts in stmts:
+		match parts[0].lower():
+			case "svc":
+				insns.append((OP_SVC, 4, 0, b""))
+			case "psh":
+				if len(parts) == 1:
+					insns.append((OP_PSH, 4, 3, b""))
+				else:
+					op_stack: list[int | str] = []
+					for op in parts[1 : ]:
+						if op == ".":
+							op_stack.append(addr)
+						elif op.startswith("0x"):
+							op_stack.append(int(op, 16))
+						elif (dt := symbols.get(op)) is None:
+							op_stack.append(op)
+						else:
+							op_stack.append(dt)
+					while len(op_stack) > 1:
+						if op_stack[-2] == "+":
+							op_stack[-3 : ] = op_stack[-3] + op_stack[-1],
+						elif op_stack[-2] == "-":
+							op_stack[-3 : ] = op_stack[-3] - op_stack[-1],
+					dt = op_stack[0]
+					assert isinstance(dt, int)
+					wd = dt.bit_length()
+					assert wd <= 32
+					if wd <= 8:
+						insns.append((OP_PSH, 8, 0, dt.to_bytes(1, "little")))
+					elif wd <= 16:
+						insns.append((OP_PSH, 8, 1, dt.to_bytes(2, "little")))
+					else:
+						insns.append((OP_PSH, 8, 2, dt.to_bytes(4, "little")))
+			case "add":
+				insns.append((OP_ADD, 4, 0, b""))
+			case "nor":
+				insns.append((OP_NOR, 4, 0, b""))
+			case "ror":
+				insns.append((OP_ROR, 4, 0, b""))
+			case "mad":
+				insns.append((OP_MAD, 4, 0, b""))
+			case "slt":
+				insns.append((OP_SLT, 4, 0, b""))
+			case "jmp":
+				insns.append((OP_JMP, 4, 0, b""))
+			case "ldr":
+				insns.append((OP_LDR, 8, 0, int(parts[1], 16).to_bytes(4, "little")))
+			case "str":
+				insns.append((OP_STR, 8, 0, int(parts[1], 16).to_bytes(4, "little")))
+			case "pop":
+				insns.append((OP_POP, 4, 0, b""))
+
+with open(dst_path, "wb") as f:
+	for op, nx, im, dt in insns:
+		bd = (op | (nx & 0x3ffffff) << 4 | im << 30).to_bytes(4, "little")
+		xt = dt.ljust(4, b"\x00") if dt else b""
+		f.write(bd + xt)

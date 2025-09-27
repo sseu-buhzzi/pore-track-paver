@@ -1,0 +1,37 @@
+#!/usr/bin/python3
+import os
+import sys
+
+dst_path = sys.argv[1]
+src_path = dst_path + "-raw"
+
+with open(src_path, "rb") as f:
+	cm_data = bytearray(f.read())
+
+tail_addr = int(sys.argv[2], 0x10)
+op_table_end_addr = int(sys.argv[3], 0x10)
+
+for off in range(tail_addr, op_table_end_addr, 0x10):
+	insns_data = bytearray((
+		cm_data[off + 0xd] ^ 0x46,
+		cm_data[off + 0x0] ^ 0xc1,
+		cm_data[off + 0xa] ^ 0x49,
+		cm_data[off + 0x4] ^ 0x11,
+		cm_data[off + 0x6] ^ 0x33,
+		cm_data[off + 0xe] ^ 0xe3,
+		cm_data[off + 0x8] ^ 0x54,
+		cm_data[off + 0x5] ^ 0x5a,
+		cm_data[off + 0x2] ^ 0xb7,
+		cm_data[off + 0x9] ^ 0x15,
+		cm_data[off + 0xc] ^ 0x86,
+		cm_data[off + 0x7] ^ 0x53,
+		cm_data[off + 0xb] ^ 0x95,
+		cm_data[off + 0x3] ^ 0xca,
+		cm_data[off + 0xf] ^ 0x97,
+		cm_data[off + 0x1] ^ 0x74
+	))
+	cm_data[off:off + 0x10] = insns_data
+
+with open(dst_path, "wb") as f:
+	f.write(cm_data)
+os.chmod(dst_path, os.stat(src_path).st_mode)

@@ -1,0 +1,74 @@
+#!/usr/bin/python3
+import math
+import os
+
+def get_prime_gen(limit: int):
+	if limit < 2:
+		return
+	yield 2
+	if limit < 3:
+		return
+	yield 3
+	for n in range(5, limit, 2):
+		for p in range(2, math.ceil(math.sqrt(n))):
+			if not n % p:
+				break
+		else:
+			yield n
+
+def get_factors(numb: int):
+	fs: list[int] = []
+	for f in range(0xffff, 1, -1):
+		while not numb % f:
+			numb //= f
+			fs.append(f)
+	return fs, numb
+
+def try_divide(numb: int):
+	for f in range(0xffff, 1, -1):
+		if not numb % f:
+			return f, numb // f
+
+def fully_collapse(numb: int):
+	ops: list[str] = []
+	while numb >= 0x10000:
+		while (p := try_divide(numb)) is None:
+			numb -= 0xffff
+			ops.append("\tsub 0xffff")
+		numb = p[1]
+		ops.append("\tdiv " + hex(p[0]))
+	ops.append("\tfin " + hex(numb))
+	return ops
+
+os.chdir(os.path.dirname(__file__))
+
+with open("imem.bin", "rb") as f:
+	imem_data = bytearray(f.read())
+
+begin = 0x0
+end = len(imem_data)
+
+print("mov\tx25, 0xffff\nmov\tx24, xzr")
+
+for off in range(begin, end, 0x8):
+	reg = "x27" if off & 0x8 else "x28"
+	numb_i0 = int.from_bytes(imem_data[off:off + 0x8], "little")
+	parts = fully_collapse(numb_i0)
+	for i in range(len(parts) - 1):
+		if parts[i].startswith("\tsub") and parts[i + 1].startswith("\tdiv"):
+			n = int(parts[i + 1][5:], 0x10)
+			parts[i:i + 2] = f"mov\tx26, {n:#x}\nmadd\t{reg}, {reg}, x26, x25\n", ""
+	for i in range(len(parts)):
+		if parts[i].startswith("\tsub"):
+			parts[i] = f"add\t{reg}, {reg}, x25\n"
+		elif parts[i].startswith("\tdiv"):
+			n = int(parts[i][5:], 0x10)
+			parts[i] = f"mov\tx26, {n:#x}\nmadd\t{reg}, x26, {reg}, x24\n"
+		elif parts[i].startswith("\tfin"):
+			n = int(parts[i][5:], 0x10)
+			parts[i] = f"mov\t{reg}, {n:#x}\n"
+	print("// " + hex(off) + "\n" + "".join(reversed(parts)))
+	if reg == "x27":
+		print(f"stp\tx28, x27, [x21, {off & 0xff0:#x}]\n")
+
+print("br\tx22")

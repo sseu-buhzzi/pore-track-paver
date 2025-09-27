@@ -59,9 +59,9 @@ with open(src_path, "r") as f:
 							op_stack.append(dt)
 					while len(op_stack) > 1:
 						if op_stack[-2] == "+":
-							op_stack[-3 : ] = op_stack[-3] + op_stack[-1],
+							op_stack[-3 : ] = int(op_stack[-3]) + int(op_stack[-1]),
 						elif op_stack[-2] == "-":
-							op_stack[-3 : ] = op_stack[-3] - op_stack[-1],
+							op_stack[-3 : ] = int(op_stack[-3]) - int(op_stack[-1]),
 					dt = op_stack[0]
 					assert isinstance(dt, int)
 					wd = dt.bit_length()

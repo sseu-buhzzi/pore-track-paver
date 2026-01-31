@@ -14,8 +14,9 @@ cp_to_pwd: out/crackme
 
 .PHONY: debug
 debug: out/crackme-raw out/crackme
-	objdump -d $< > $<.dsm;
-	objdump -d out/crackme > out/crackme.dsm;
+	objdump -d $< >$<.dsm;
+	objdump -d out/crackme >out/crackme.dsm;
+	readelf -Wa out/crackme >out/crackme-readelf.txt;
 
 out/crackme: out/crackme-raw
 	python3 src/encr-tail $@ 0x4000 0x45c0;
@@ -27,7 +28,7 @@ out/crackme-raw: out/svc/_start-svc.o src/track_paver.s src/decr-imem.s out/svc/
 
 out/svc/%-svc.o: src/%.c
 	@mkdir -p out/svc;
-	gcc -O3 -S -o out/$*.s $<;
+	gcc -O0 -S -o out/$*.s $<;
 	python3 src/convert-svc out/$*;
 	gcc -c -o $@ out/$*-svc.s;
 	@rm -f out/$*.s out/$*-svc.s;

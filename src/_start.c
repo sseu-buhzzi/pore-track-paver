@@ -27,7 +27,7 @@ int32_t _start() {
 	((__uint128_t *) buf)[0x2f] = ((uint64_t *) buf)[0x33] * (__uint128_t) 0x17f9;
 	((__uint128_t *) buf)[0x2f] = ((__uint128_t *) buf)[0x2f] * 0x25d3;
 
-	*(int32_t *) buf = openat(AT_FDCWD, buf + 376, O_RDONLY);
+	*(int32_t *) buf = openat(AT_FDCWD, buf + 0x2f0, O_RDONLY);
 	read(*(int32_t *) buf, buf + 4, 2);
 	uint8_t pad[*(uint16_t *) (buf + 4)];
 	for (*(uint32_t *) (buf + 6) = 0; *(uint32_t *) (buf + 6) < *(uint16_t *) (buf + 4); ++*(uint32_t *) (buf + 6)) {

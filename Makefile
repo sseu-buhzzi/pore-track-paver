@@ -28,7 +28,7 @@ out/crackme-raw: out/svc/_start-svc.o src/track_paver.s src/decr-imem.s out/svc/
 
 out/svc/%-svc.o: src/%.c
 	@mkdir -p out/svc;
-	gcc -O0 -S -o out/$*.s $<;
+	gcc -O3 -S -o out/$*.s $<;
 	python3 src/convert-svc out/$*;
 	gcc -c -o $@ out/$*-svc.s;
 	@rm -f out/$*.s out/$*-svc.s;

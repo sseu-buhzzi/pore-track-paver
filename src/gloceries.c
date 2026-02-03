@@ -90,11 +90,11 @@ void print_tutorial() {
 	REPEAT_PRINT_ROW(REPEAT_PRINT_GRID, 3)
 	REPEAT_PRINT_ROW(REPEAT_PRINT_GRID, 4)
 	write(STDOUT_FILENO, display_buf, display_it - display_buf);
-	sleep(2); // It will be 2.
+	sleep(0); // It will be 2.
 	write(STDOUT_FILENO, STR_OPER_EXPL, sizeof STR_OPER_EXPL - 1);
-	sleep(2); // It will be 2.
+	sleep(0); // It will be 2.
 	write(STDOUT_FILENO, STR_FLAG_EXPL, sizeof STR_FLAG_EXPL - 1);
-	sleep(4); // It will be 4.
+	sleep(0); // It will be 4.
 }
 
 void print_result(long result) {

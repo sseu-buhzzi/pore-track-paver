@@ -3,14 +3,17 @@
 enter:
 	.global	interpret
 interpret:
-	stp	x0, x1, [sp]
-	stp	x0, x1, [sp, -0x30]
+	stp	x0, x1, [sp]			// $sp: $sp0
+						// *(long *) $sp0: TP_PC, PC of track_paver's VM
+						// *(long *) ($sp0 + 0x8): TP_SP
+	stp	x0, x1, [sp, -0x30]		// *(long *) ($sp0 - 0x30): TP_PC
+						// *(long *) ($sp0 - 0x28): TP_SP
 	bl	print_tutorial
-	ldr	x21, [sp]
+	ldr	x21, [sp]			// $x21: TP_PC
 	mov	x24, 0x702f
 	movk	x24, 0x6f72, lsl 0x10
 	movk	x24, 0x2f63, lsl 0x20
-	movk	x24, 0x6573, lsl 0x30
+	movk	x24, 0x6573, lsl 0x30		// $x24: "/proc/se", no real use, aiming to be misleading
 	adr	x22, .
 	adrp	x25, decr_imem
 	add	x30, x25, :lo12:decr_imem
@@ -18,7 +21,8 @@ interpret:
 	ret
 aft_decr_imem:
 	sub	x1, sp, 0x130
-	mov	x8, 0x71
+	mov	x8, 0x71			// 0x71: clock_gettime
+	eor	x0, x8, x8
 	svc	0x0
 	ldp	x30, x29, [sp, -0x130]
 	nop
@@ -31,54 +35,56 @@ aft_decr_imem:
 	movk	x28, 0x732f, lsl 0x10
 	movk	x28, 0x6174, lsl 0x20
 	movk	x28, 0x7574, lsl 0x30
-	stp	x29, x28, [sp, -0x80]!
+	stp	x29, x28, [sp, -0x80]!		// $sp: $sp0 - 0x80
 	mov	x28, 0x73
 	sub	x28, x28, 0x63
-	add	sp, sp, x28
+	add	sp, sp, x28			// $sp: $sp0 - 0x70
 	mov	x27, 0x9
 	mov	x29, 0xb
 	madd	x29, x29, x27, x28
-	str	x29, [sp], 0x70
-	tst	x30, x30
+	str	x29, [sp], 0x70			// "/proc/self/status"
+						// $sp: $sp0
+	tst	x30, x30			// tv_sec and tv_nsec are not 0 at the same time.
 	b.eq	beq_15
 	mov	x29, 0x8a28
 	mov	x28, 0x22
-	bfi	x29, x28, 0x10, 0x8		// X29: 0x228a28
+	bfi	x29, x28, 0x10, 0x8		// $x29: 0x228a28
 	mov	x28, 0x96e9
 	movk	x28, 0x1d99, lsl 0x10
-	movk	x28, 0x332, lsl 0x20		// X28: 0x3321d9996e9
+	movk	x28, 0x332, lsl 0x20		// $x28: 0x3321d9996e9
 	mov	x27, 0x428
 	mov	x26, 0x645
 	mov	x30, 0x26ff
-	madd	x30, x27, x26, x30		// X30: 1a35c7
+	madd	x30, x27, x26, x30		// $x30: 1a35c7
 	mov	x27, 0x2333
 	mov	x25, 0x31b
 	mov	x26, 0x2003
-	madd	x25, x25, x27, x26		// X25: "dom\x00"
-	madd	x29, x29, x28, x30		// X29: "/dev/ran"
+	madd	x25, x25, x27, x26		// $x25: "dom\x00"
+	madd	x29, x29, x28, x30		// $x29: "/dev/ran"
 	mov	x28, 0x6ee4
 	movk	x28, 0x6d, lsl 0x10
 	add	x28, sp, x28
-	sub	x28, x28, x25
-	stp	x29, x25, [x28]
+	sub	x28, x28, x25			// $x28: $sp0 - 0x80
+	stp	x29, x25, [x28]			// (char const *) ($sp0 - 0x80): "/dev/random"
 beq_15:
 	sub	x1, sp, 0x80
 	mov	x0, 0x40
-	sub	x8, x0, 0x8
+	sub	x8, x0, 0x8			// 0x38: openat
 	eor	x2, x0, 0x40
 	mov	x0, x2
 	svc	0x0
 	mov	x29, x0				// There should be the fd of /dev/random.
-	mov	x8, 0x3f
+	mov	x8, 0x3f			// 0x3f: read
 	mov	x0, x29
 	sub	x1, sp, 0xe0
 	mov	x2, 0x3
 	svc	0x0
-	mov	x8, 0x39
+	mov	x8, 0x39			// 0x39: close
 	mov	x0, x29
 	svc	0x0
-	mov	x8, 0xde
-	ldr	w0, [sp, -0xe0]
+	mov	x8, 0xde			// 0xde: mmap
+	//ldr	w0, [sp, -0xe0]
+	mov	x0, xzr // DEBUG ONLY
 	lsl	x0, x0, 0xc
 	movk	x0, 0x1644, lsl 0x20
 	mov	x1, 0x1000
@@ -91,8 +97,10 @@ beq_15:
 	ldp	x0, x1, [sp]
 	adr	x29, pool			// Load pool address.
 	stp	x29, xzr, [sp, -0x10]		// Store the address of pool, and the address code on whom created head.
+						// *(long *) ($sp0 - 0x10): pool
+						// (long *) ($sp0 - 0x8): NULL
 	str	xzr, [sp, -0x20]		// Store the address of secret page.
-copy_head:
+copy_head:					// Write the immediates to [x30], which is the mmaped address.
 	// 0x3000
 	mov	x28, 0x3c2
 	mov	x26, 0xc962
@@ -706,12 +714,13 @@ copy_head:
 
 	ret
 sokoban_entry:
-	stp	x0, x1, [sp], 0x100		// Yes, positive offset! I promise this does no harm.
+	stp	x0, x1, [sp], 0x100		// Yes, positive offset, I promise this works.
+						// $sp: $sp0 + 0x100
 	bl	sokoban_update
 	mov	x30, x29
 	mov	x2, x0
-	ldrb	w29, [sp, -0x1]
-	ldp	x0, x1, [sp, -0x100]!
+	ldrb	w29, [sp, -0x1]			// *(long *) ($sp0 + 0xff): pressed key
+	ldp	x0, x1, [sp, -0x100]!		// $sp: $sp0
 	str	x2, [x1, -0x8]!
 	ret
 print_result_entry:
@@ -719,54 +728,62 @@ print_result_entry:
 final_flag:
 	.ascii	"~~~赤より紅い夢~~~"
 head_alignment:
-	.balign	0x1000, 0x0				// For convenience of debugging.
+	.balign	0x1000, 0x0			// For convenience of debugging.
 pool:
-head:
+head:						// I denote it with head when calculating the address in the mapped pages, and
+						// denote it with pool when referring the page mapped from the ELF file.
 loop_beg:
 	ldr	x28, [sp, -0x8]			// Load the creater address.
 	cbz	x28, head_aft_destr		// Check whether it should be unmount.
 	stp	x0, x1, [sp, 0x8]
-	mov	x8, 0xd7
+	mov	x8, 0xd7			// 0xd7: munmap
 	mov	x0, x28
 	mov	x1, 0x1000
 	svc	0x0
 	ldp	x0, x1, [sp, 0x8]
 head_aft_destr:
-	stp	x0, x1, [sp, 0x8]
+	stp	x0, x1, [sp, 0x8]		// *(long *) ($sp0 + 0x8): TP_PC
+						// *(long *) ($sp0 + 0x10): TP_SP
 	mov	x29, xzr
 	adr	x28, head			// Use a new page.
 	str	x28, [sp, -0x18]		// Store head address. It creates body.
-	stp	x0, x1, [sp]
+						// *(long *) ($sp0 - 0x18): head
+	stp	x0, x1, [sp]			// *(long *) $sp0: TP_PC
+						// *(long *) ($sp0 + 0x8): TP_SP
 	ldp	x0, x1, [x28, 0x30]!
-	ldrb	w2, [x28, -0x1]!
+	ldrb	w2, [x28, -0x1]!		// $x28: head + 0x2f
 	mov	x27, x1
 	eor	x1, x1, 0x1000
-	eor	x1, x1, x27
+	eor	x1, x1, x27			// $x1: 0x1000
 	add	x0, x28, 0x2f000
-	bfi	x0, xzr, 0x20, 0x1
-	sub	x0, x0, 0x2f
+	bfi	x0, xzr, 0x20, 0x1		// Prevents overflow.
+	sub	x0, x0, 0x2f			// $x0: head + 0x2f000, modded
 	mov	x2, 0x7
 	mov	x3, 0x32
 	mov	x4, -0x1
 	mov	x5, 0x0
-	mov	x8, 0xde
+	mov	x8, 0xde			// 0xde: mmap
 	svc	0x0
 	add	x30, x0, exec - tail
-	mov	x25, x0
+
+	mov	x25, x0				// $x25: head + 0x2f000, modded
 	ldp	x0, x1, [sp]
 	ldr	w28, [x0]			// Load OP field of this instruction.
-	bfi	x29, x28, 0x6, 0x4
+	bfi	x29, x28, 0x6, 0x4		// $x29: $tp_op * 0x40
 	ldr	x28, [sp, -0x10]		// Load pool address.
-	mov	x27, op_table - pool		// With aligning this immediate is too big for ADD, but it works when I don't use aligning.
+	mov	x27, op_table - pool		// With aligning this immediate is too big for ADD, but it works when I don't
+						// use aligning.
 	add	x29, x29, x27			// A certain offset to OP table.
-	add	x29, x28, x29			// X28: pool address; X29: OP table offset.
+	add	x29, x28, x29			// $x28: pool address; $x29: OP table offset.
+
 copy_tail:
-	ldr	x26, [sp, -0x10]
-	add	x27, x26, tail - pool		// Source, begin.
-	add	x26, x27, tail_enter_end - tail	// Source, end.
+	ldr	x26, [sp, -0x10]		// $x26: pool, in the ELF mapping area, encrypted
+	add	x27, x26, tail - pool		// Begin of encrypted source code.
+	add	x26, x27, tail_enter_end - tail	// End of encrypted source code.
 	// mov	x25, x30			// Destination, begin. Put it before, same in X25.
+						// I don't know what it is, it's not the same with X25.
 	adr	x20, specify_exec
-copy_tail_loop:
+copy_tail_loop:					// for ($x27 = ...; $x27 != $x26; $x27 += 0x10)
 	ldp	x23, x24, [x27], 0x10
 	movk	x22, 0x5a54, lsl 0x30
 	movk	x22, 0x1149, lsl 0x10
@@ -817,9 +834,9 @@ specify_exec:
 	mov	x25, x30
 	add	x26, x29, 0x40
 	adr	x20, aft_specify_exec
-	b	copy_tail_loop
+	b	copy_tail_loop			// Do a copy again on the dispatched VM branch.
 aft_specify_exec:
-	sub	x30, x30, exec - tail
+	sub	x30, x30, exec - tail		// $x30: tail
 	ret
 tail_alignment:
 	.balign	0x1000, 0x0			// For convenience of debugging.
@@ -827,19 +844,21 @@ tail:
 	stp	x0, x1, [sp]			// Unmount head page.
 	ldr	x0, [sp, -0x18]
 	mov	x1, 0x1000
-	mov	x8, 0xd7
+	mov	x8, 0xd7			// 0xd7: munmap
 	svc	0x0
 	ldp	x0, x1, [sp]
 exec:
-	stp	x29, x30, [sp, -0x30]!
+	stp	x29, x30, [sp, -0x30]!		// $sp: $sp0 - 0x30
+						// *(long *) ($sp0 - 0x30): address of the op branch
+						// *(long *) ($sp0 - 0x28): pool
 	mov	x29, sp
 	mov	x1, 0x0
 	adrp	x0, sokoban_update
 	add	x0, x0, :lo12:sokoban_update
 	blr	x0
 	cbnz	x0, exec
-	sub	sp, sp, 0x40
-	ldp	x29, x30, [sp, -0x1f0]!
+	sub	sp, sp, 0x40			// $sp: $sp0 - 0x70
+	ldp	x29, x30, [sp, -0x1f0]!		// $sp: $sp0 - 0x260
 	cmp	x29, x30
 	b.eq	update_pc
 	sbfx	x0, x29, 0x4, 0x1d
@@ -854,17 +873,19 @@ update_pc:
 aft_update_pc:
 extend_head_in_tail:
 	stp	x0, x1, [sp]
-	mov	x8, 0xde
+	mov	x8, 0xde			// 0xde: mmap
 	adr	x28, tail
 	add	x0, x28, 0x2f000
 	bfi	x0, xzr, 0x20, 0x1
+
 	mov	x1, 0x1000
 	mov	x2, 0x7
 	mov	x3, 0x32
 	mov	x4, -0x1
 	mov	x5, 0x0
-	svc	0x0
-	mov	x30, x0
+	svc	0x0				// Map the next head.
+
+	mov	x30, x0				// $x30: next head
 	ldp	x0, x1, [sp]
 	ldr	x29, [sp, -0x10]		// Address of pool.
 	adr	x28, tail
@@ -873,39 +894,45 @@ extend_head_in_tail:
 	br	x29
 op_svc_secret:
 	ldr	x30, [sp, -0x10]!		// Remember to keep it, what in X30 now.
+						// $sp: $sp0 - 0x10
 	ldr	x29, [sp, -0x10]		// The address of the secret page. Maybe NULL.
-	mov	x26, x8
-	cbnz	x29, op_svc_aft_create_secret	// Initialize the secret page when not initialized.
+	mov	x26, x8				// $x26: uint32 popped from the VM stack
+	cbnz	x29, op_svc_aft_create_secret	// Initialize the secret page when not initialized. Branches here if
+						// initialized.
+
 	mov	w27, 0x71680000
 	movk	w27, 0x9472
-	str	w27, [sp, -0x24]
-	sub	x27, sp, 0x70
+	str	w27, [sp, -0x24]		// *(long *) ($sp0 - 0x34): "r\x94hq", what?
+	sub	x27, sp, 0x70			// $x27: $sp0 - 0x80
 	mov	x8, 0x7
 	stp	x0, x1, [sp, 0x10]
-	add	x1, x8, 0x1
-	madd	x8, x8, x1, xzr
+	add	x1, x8, 0x1			// $x1: 0x8
+	madd	x8, x8, x1, xzr			// 0x38: openat
 	mov	x0, 0xffe7
-	sxth	x1, w0
+	sxth	x1, w0				// $x1: -0x25
 	orn	x0, x8, x1
-	mov	x2, x0
+	mov	x2, x0				// $x2: 0x0
 	mov	x1, x27
 	eor	x0, x0, x0
 	svc	0x0				// SYSCALL openat.
-	orr	x8, x8, 0x7
-	sub	x1, sp, 0x30
-	and	x2, x8, 0x7
-	mov	x3, x0
+
+	orr	x8, x8, 0x7			// $x8: 0x3f
+	sub	x1, sp, 0x30			// $x1: $sp0 - 0x40
+	and	x2, x8, 0x7			// $x2: 0x7
+	mov	x3, x0				// Preserves FD, not a parameter.
 	svc	0x0				// SYSCALL read. FD is in X0 and kept.
 	mov	x0, x3
-	bfi	x8, xzr, 0x1, 0x2
+	bfi	x8, xzr, 0x1, 0x2		// 0x39: close
+						// $x8: 0x39
 	svc	0x0				// SYSCALL close..
-	ldr	x8, [sp, -0x30]
-	bfi	x0, x8, 0xc, 0x14
+	ldr	x8, [sp, -0x30]			// $x8: *(long *) ($sp0 - 0x40), random int read
+	//bfi	x0, x8, 0xc, 0x14
+	mov	x0, xzr // DEBUG ONLY
 	movk	x0, 0x1453, lsl 0x20
 	lsl	x8, x0, 0x10
 	rbit	x8, x8
 	mvn	x8, x8
-	bfm	x1, x8, 0x4, 0x7
+	bfm	x1, x8, 0x4, 0x7		// $x1: $sp0 - 0x33
 	mov	x8, 0xe
 	bfi	x8, x1, 0x4, 0x4
 	mov	x1, 0x1000
@@ -914,17 +941,18 @@ op_svc_secret:
 	mov	x4, -1
 	mov	x5, xzr
 	svc	0x0				// SYSCALL mmap.
-	str	x0, [sp, -0x10]
+	str	x0, [sp, -0x10]			// *(long *) ($sp0 - 0x20): secret
 	ldp	x0, x1, [sp, 0x10]
 op_svc_aft_create_secret:
 	ldr	x27, [sp], 0x10			// It's only for modify SP, with X27 useless.
+						// $sp: $sp0
 	add	x30, x30, sokoban_entry - pool
 	adr	x29, op_svc_secret_aft_sokoban
 	ret
 op_svc_key_reject:
 	cmp	x29, 0x10
 	b.eq	update_pc
-	str	wzr, [sp, -0x34]!
+	str	wzr, [sp, -0x34]!		// *(long *) ($sp0 - 0x34): 0
 	ldr	x29, [sp, -0x4]
 	add	sp, sp, 0x34
 	cbz	x29, update_pc
@@ -933,19 +961,24 @@ op_svc_key_reject:
 op_svc_secret_aft_sokoban:
 	cmp	x29, 0x78
 	b.ne	sokoban_key_move
-	ldrh	w27, [sp, -0x1a]
-	lsr	x28, x27, 0xb
-	bfi	x28, x27, 0x5, 0xb
-	add	x27, x28, 0x1
-	lsr	x28, x27, 0x5
-	bfi	x28, x27, 0xb, 0x5
-	strh	w28, [sp, -0x1a]!
-	ldr	w28, [sp, -0x1a]!
+	ldrh	w27, [sp, -0x1a]		// $x27: *(short *) ($sp0 - 0x1a), the top two bytes of 0x1453?????000, used as
+						// a counter.
+	lsr	x28, x27, 0xb			// $x28: 0x0
+	bfi	x28, x27, 0x5, 0xb		// $x28: 0x0
+	add	x27, x28, 0x1			// $x27: 0x1
+	lsr	x28, x27, 0x5			// $x28: 0x0
+	bfi	x28, x27, 0xb, 0x5		// $x28: 0x800
+	strh	w28, [sp, -0x1a]!		// $sp: $sp0 - 0x1a
+						// *(short *) ($sp0 - 0x1a): 0x1c53
+	ldr	w28, [sp, -0x1a]!		// $sp: $sp0 - 0x34
 	mul	w28, w28, w28
 	str	w28, [sp], 0x34
 	adr	x30, update_pc
 	ret
-sokoban_key_move:
+sokoban_key_move:				// W: 0x0
+						// D: 0x2
+						// S: 0x4
+						// A: 0x6
 	cmp	x29, 0x70
 	b.ls	sokoban_key_da
 	cmp	x29, 0x74
@@ -959,7 +992,7 @@ sokoban_key_s:
 	b.ne	op_svc_key_reject
 	mov	x29, 0x4
 	b	sokoban_aft_key
-sokoban_key_da:
+sokoban_key_da:					// It means D or A.
 	cmp	x29, 0x62
 	b.ls	sokoban_key_a
 	cmp	x29, 0x64
@@ -977,8 +1010,8 @@ sokoban_aft_key:
 	mov	x28, xzr
 	mov	x27, xzr
 	ldr	x29, [sp, -0x20]
-	bfxil	x28, x29, 0x30, 0xb		// X28: offset in memory.
-	bfxil	x27, x29, 0x3b, 0x5		// X27: offset in register.
+	bfxil	x28, x29, 0x30, 0xb		// $x28: offset in memory.
+	bfxil	x27, x29, 0x3b, 0x5		// $x27: offset in register.
 	mov	x30, x27
 	bfi	x30, x28, 0x5, 0xb
 	cmp	x30, 0x200
